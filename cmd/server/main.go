@@ -78,9 +78,9 @@ func main() {
 	srv := &http.Server{
 		Addr:         addr,
 		Handler:      router,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		ReadTimeout:  5 * time.Minute,  // Increased for long requests
+		WriteTimeout: 0,                 // No write timeout for SSE
+		IdleTimeout:  120 * time.Second, // Keep connections alive
 	}
 
 	// Start server in a goroutine
