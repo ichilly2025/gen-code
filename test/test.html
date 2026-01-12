@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gen-Code - 代码生成服务测试</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+        }
+
+        input, textarea, select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e1e8ed;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        input:focus, textarea:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .status-section {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f7f9fc;
+            border-radius: 8px;
+            display: none;
+        }
+
+        .status-section.active {
+            display: block;
+        }
+
+        .status-item {
+            padding: 10px;
+            margin: 5px 0;
+            background: white;
+            border-left: 4px solid #667eea;
+            border-radius: 4px;
+        }
+
+        .status-item.completed {
+            border-left-color: #48bb78;
+        }
+
+        .status-item.failed {
+            border-left-color: #f56565;
+        }
+
+        .status-time {
+            color: #999;
+            font-size: 12px;
+        }
+
+        .repo-link {
+            display: inline-block;
+            margin-top: 10px;
+            padding: 8px 16px;
+            background: #48bb78;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 500;
+        }
+
+        .repo-link:hover {
+            background: #38a169;
+        }
+
+        .error {
+            color: #f56565;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Gen-Code</h1>
+        <p class="subtitle">AI驱动的代码生成服务</p>
+
+        <form id="generateForm">
+            <div class="form-group">
+                <label for="prompt">项目描述 *</label>
+                <textarea 
+                    id="prompt" 
+                    name="prompt" 
+                    required
+                    placeholder="例如：创建一个Python Flask Web应用，包含用户认证和RESTful API"
+                ></textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="repoName">仓库名称 *</label>
+                <input 
+                    type="text" 
+                    id="repoName" 
+                    name="repo_name" 
+                    required
+                    placeholder="my-awesome-project"
+                    pattern="[a-zA-Z0-9-_]+"
+                    title="只能包含字母、数字、横线和下划线"
+                >
+            </div>
+
+            <div class="form-group">
+                <label for="model">选择模型</label>
+                <select id="model" name="model">
+                    <option value="deepseek">DeepSeek</option>
+                    <option value="openai">OpenAI GPT-4</option>
+                </select>
+            </div>
+
+            <button type="submit" id="submitBtn">
+                🎯 生成代码
+            </button>
+        </form>
+
+        <div id="statusSection" class="status-section">
+            <h3>📊 生成状态</h3>
+            <div id="statusLog"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8080/api/v1';
+        const form = document.getElementById('generateForm');
+        const submitBtn = document.getElementById('submitBtn');
+        const statusSection = document.getElementById('statusSection');
+        const statusLog = document.getElementById('statusLog');
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = {
+                prompt: document.getElementById('prompt').value,
+                repo_name: document.getElementById('repoName').value,
+                model: document.getElementById('model').value
+            };
+
+            try {
+                submitBtn.disabled = true;
+                submitBtn.textContent = '⏳ 创建任务中...';
+                
+                // Create task
+                const response = await fetch(`${API_BASE}/generate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(formData)
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to create task');
+                }
+
+                const data = await response.json();
+                const taskId = data.task_id;
+
+                // Show status section
+                statusSection.classList.add('active');
+                statusLog.innerHTML = '';
+
+                addStatusItem('任务已创建', 'pending');
+
+                // Subscribe to SSE
+                subscribeToStatus(taskId);
+
+            } catch (error) {
+                alert('创建任务失败：' + error.message);
+                submitBtn.disabled = false;
+                submitBtn.textContent = '🎯 生成代码';
+            }
+        });
+
+        function subscribeToStatus(taskId) {
+            const eventSource = new EventSource(`${API_BASE}/status/${taskId}`);
+
+            eventSource.addEventListener('status', (event) => {
+                const data = JSON.parse(event.data);
+                console.log('Status update:', data);
+
+                const statusText = getStatusText(data.status);
+                addStatusItem(statusText + ': ' + data.message, data.status);
+
+                if (data.repo_url) {
+                    addRepoLink(data.repo_url);
+                }
+
+                if (data.status === 'completed') {
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = '🎯 生成代码';
+                    eventSource.close();
+                } else if (data.status === 'failed') {
+                    addStatusItem('错误: ' + (data.error || '未知错误'), 'failed');
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = '🎯 生成代码';
+                    eventSource.close();
+                }
+            });
+
+            eventSource.onerror = (error) => {
+                console.error('SSE Error:', error);
+                addStatusItem('连接错误', 'failed');
+                submitBtn.disabled = false;
+                submitBtn.textContent = '🎯 生成代码';
+                eventSource.close();
+            };
+        }
+
+        function getStatusText(status) {
+            const statusMap = {
+                'pending': '⏳ 等待处理',
+                'generating': '🤖 生成代码',
+                'merging_files': '📝 处理文件',
+                'creating_repo': '🏗️  创建仓库',
+                'pushing': '📤 推送代码',
+                'completed': '✅ 完成',
+                'failed': '❌ 失败'
+            };
+            return statusMap[status] || status;
+        }
+
+        function addStatusItem(text, status) {
+            const item = document.createElement('div');
+            item.className = 'status-item ' + status;
+            
+            const time = new Date().toLocaleTimeString('zh-CN');
+            item.innerHTML = `
+                <div>${text}</div>
+                <div class="status-time">${time}</div>
+            `;
+            
+            statusLog.appendChild(item);
+            statusLog.scrollTop = statusLog.scrollHeight;
+        }
+
+        function addRepoLink(url) {
+            const link = document.createElement('a');
+            link.href = url;
+            link.target = '_blank';
+            link.className = 'repo-link';
+            link.textContent = '🔗 查看仓库';
+            
+            const lastItem = statusLog.lastElementChild;
+            if (lastItem) {
+                lastItem.appendChild(link);
+            }
+        }
+    </script>
+</body>
+</html>
